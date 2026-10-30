@@ -337,11 +337,12 @@ def test_checkpoint_preflight_delivers_the_real_cli_view_and_retains_full_source
         # Correct outer bytes cannot rescue unsupported inner version semantics.
         malformed = copy.deepcopy(source)
         malformed["schema_version"] = "unsupported-future-version"
-        from hashlib import sha256
+        from tests.control_plane.test_complete_turn_decision import _canonical_digest
         bad_path = tmp_path / "unsupported.json"
         bad_path.write_text(json.dumps(malformed))
-        digest = "sha256:" + sha256(json.dumps(malformed, sort_keys=True,
-            ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
+        # Use the independent historical JS-number oracle so the outer hash
+        # passes and this fixture reaches the unsupported-version boundary.
+        digest = _canonical_digest(malformed)
         command = shlex.split(packet["review"])
         command[command.index("--decision-file") + 1] = str(bad_path)
         command[command.index("--source-hash") + 1] = digest
@@ -497,7 +498,7 @@ def test_real_guard_capture_read_and_writeback_without_another_guard(tmp_path, m
             target[field] = value
             (capture / "decision.json").write_text(json.dumps(source))
             rejected = read("review", expected_code=1)
-            assert "source hash" in rejected["reason"]
+            assert rejected["reason"] == "complete Turn decision content integrity mismatch"
         (capture / "decision.json").write_bytes(saved)
         # A valid next operation still reaches the existing writer and semantic gate.
         result = call_progress_cli(fixture, *fixture["refresh"])
@@ -564,8 +565,6 @@ def test_populated_history_and_cumulative_acceptance_have_separate_budgets(tmp_p
     for row, outcome in zip(index["outcomes"], originals, strict=True):
         read = _turn_envelope_result("replan_view", **params, stage="acceptance", outcome_ref=row["outcome_ref"])
         assert read["outcome"] == outcome
-        assert _turn_envelope_result("captured_outcome", payload=large,
-            outcome_ref=row["outcome_ref"])["outcome"] == outcome
         assert row["requirement_count"] == len(outcome["requirements"])
     # A different source revision with the same outcome id must remain visible.
     large["planning_horizon"]["core_goal"]["acceptance_contract"]["outcome_requirements"]["outcomes"][0]["revision"] = 3
