@@ -250,7 +250,9 @@ def test_checkpoint_preflight_delivers_the_real_cli_view_and_retains_full_source
         lambda *a, **k: {"capture_allowed": False, "reason": "synthetic_no_native_capture"})
     run, commands = checkpoint.subprocess.run, []
     def observe(command, **kwargs):
-        commands.append(command)
+        # Count the pinned preflight CLI, not the independent hash oracle.
+        if command[0] == str(executable):
+            commands.append(command)
         return run(command, **kwargs)
     monkeypatch.setattr(checkpoint.subprocess, "run", observe)
     receipt = {"turn_id": TURN, "mode": "heartbeat", "stage": "execute"}
