@@ -123,6 +123,8 @@ def main(argv=None):
                         help="Opt-in short heartbeat context with same-invocation full captures")
     parser.add_argument("--context-delivery", choices=("off", "on"), default="off",
                         help="Experimental native Codex benchmark heartbeat reuse only; off by default")
+    parser.add_argument("--provider-request-admission", action="store_true",
+                        help="Opt-in canonical admission before each heartbeat custom Responses request")
     parser.add_argument("--native-goal-continue", action="store_true",
                         help="Opt-in: when a native Goal declares completion with budget left, start "
                              "continuation Goals until the budget edge (native-goal worker only)")
@@ -176,6 +178,9 @@ def main(argv=None):
                         help="Native default: 3600s between accepted submissions; other modes retain 120s")
     parser.add_argument("--judge-url", required=True)
     parser.add_argument("--api-proxy-url", help="Operator-owned, OpenAI-only CONNECT proxy")
+    parser.add_argument("--docker-host-bridge", action="store_true",
+                        help="Host services run on Docker's default bridge (e.g. runner inside a VM); "
+                             "pin host.docker.internal there instead of Docker's host-gateway alias")
     args = parser.parse_args(argv)
     api_base_url = os.environ.get("OPENAI_BASE_URL") or None
     api_key = os.environ.get("OPENAI_API_KEY") if api_base_url else None
@@ -194,6 +199,13 @@ def main(argv=None):
         parser.error("--turn-envelope requires a heartbeat worker")
     if args.context_delivery != "off" and not args.worker.startswith("heartbeat-"):
         parser.error("--context-delivery requires a heartbeat worker")
+    if args.provider_request_admission:
+        if not args.worker.startswith("heartbeat-"):
+            parser.error("--provider-request-admission requires a heartbeat worker")
+        if not (api_base_url or "").strip() or not (api_key or "").strip():
+            parser.error("--provider-request-admission requires OPENAI_BASE_URL and OPENAI_API_KEY")
+        if (os.environ.get("CODEX_WIRE_API") or "responses") != "responses":
+            parser.error("--provider-request-admission requires CODEX_WIRE_API=responses")
     if args.native_goal_continue and args.worker != "native-goal":
         parser.error("--native-goal-continue requires --worker native-goal")
     if (args.replan_after_turns is not None or args.replan_after_todos is not None
@@ -342,6 +354,7 @@ def main(argv=None):
                          task_entry=args.task_entry,
                          turn_envelope=args.turn_envelope,
                          context_delivery=args.context_delivery,
+                         **({"provider_request_admission": True} if args.provider_request_admission else {}),
                          native_goal_continue=args.native_goal_continue,
                          replan_after_turns=args.replan_after_turns,
                          replan_after_todos=args.replan_after_todos,
@@ -378,6 +391,7 @@ def main(argv=None):
     backend = RecordingDockerBackend(log_dir=trial / "collected", logger=logger,
                                      oauth_proxy=bool(args.api_proxy_url or api_base_url),
                                      blind_api_endpoint=blind_endpoint, feedback=feedback,
+                                     docker_host_bridge=args.docker_host_bridge,
                                      **({"checkpoint": checkpoint} if checkpoint is not None else {}))
     for image in (task.work_image_key, task.judge_image_key):
         if not backend.image_exists(image):
@@ -403,10 +417,12 @@ def main(argv=None):
            if agent.task_entry == "loopx-planned" else {}),
         "model": args.model, "effort": args.effort, "timeout_seconds": args.timeout,
         "provider_rate_limit_retry_seconds": args.provider_rate_limit_retry_seconds,
+        **({"docker_host_bridge": True} if args.docker_host_bridge else {}),
         "loopx_commit": pins[0], "runner_commit": pins[1],
         "sforge_source": active_source_receipt(),
         **turn_envelope_receipt(explicit=args.turn_envelope),
         **({"context_delivery": "on"} if args.context_delivery != "off" else {}),
+        **({"provider_request_admission": "on"} if args.provider_request_admission else {}),
         **({"native_goal_continue": True} if args.native_goal_continue else {}),
         "task_sha256": hashlib.sha256(task_file.read_bytes()).hexdigest(),
         "feedback": args.feedback, "internet": task.internet,

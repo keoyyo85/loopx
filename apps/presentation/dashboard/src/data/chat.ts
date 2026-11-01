@@ -899,6 +899,7 @@ export type ChatVisibleMessage = {
   /** Client-side lineage added when messages from several Sessions are merged. */
   session_id?: string;
   collaboration?: CollaborationReadback;
+  collaborations?: CollaborationReadback[];
   origin?: string;
   attachments?: ChatImageAttachment[];
   /** Read-only original-source view; text remains the canonical model input. */
@@ -2914,7 +2915,8 @@ const exploreResultPageSchema = z.object({
     finding_id: z.string(), finding: z.string(), summary: z.string(), status: z.string(),
     node_id: z.string(), question: z.string(), scope: z.string(), agent_id: z.string(),
     evidence_refs: z.array(z.string()), last_updated_at: z.string(),
-    measurements: z.unknown().transform(normalizeExploreMeasurements).optional(),
+    measurements: z.unknown().transform(value => normalizeExploreMeasurements(value)).optional(),
+    measurement_error: z.string().optional(),
     linked_todos_available: z.boolean().optional(),
     linked_todos: z.array(z.object({
       todo_id: z.string(), text: z.string(), status: z.string(), claimed_by: z.string(),

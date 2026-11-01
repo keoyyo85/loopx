@@ -150,6 +150,9 @@ JournalPersist = Callable[[Mapping[str, Any]], None]
 
 
 def build_loopx_turn_host_request(plan: Mapping[str, Any]) -> dict[str, Any]:
+    boundary = plan.get("boundary")
+    if isinstance(boundary, Mapping) and boundary.get("inspection_only") is True:
+        raise ValueError("LoopX Turn CLI inspection requires the explicit run-once execution surface")
     transaction = (
         plan.get("transaction") if isinstance(plan.get("transaction"), dict) else {}
     )

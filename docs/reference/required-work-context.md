@@ -155,6 +155,38 @@ model retention. These separate boundaries prevent transport loss from becoming
 either a repeated full-input loop or permission to act on missing requirements.
 No token savings or accepted outcome gains follow from instruction delivery alone.
 
+An enabled native **full** reference for a recognized decision can include
+`first_read_command`. It batches current admission/stop facts, the selected task,
+whole Goal/Todo narrative, source availability/revisions and read routes. Detailed
+history and optional authoring recipes remain expandable from the same capture.
+It also exposes existing outcome material addresses and the current settlement
+plan's obligations, including unknown step fields. Only attachments explicitly
+marked `required=false` defer their guidance/templates; their routes stay visible
+and the complete captured attachment must be read before use. Unknown plan
+versions remain whole. Initial pages do not repeat pointers already present in
+their content; the selection digest still prevents a full-input receipt.
+Its `context-read --initial-read` uses the same exact-address selector; paged
+continuations retain the short option and pin the selection digest. A changed
+profile rejects rather than mixing views. The option is read-only and exclusive with explicit
+selectors or discovery; unknown schemas use generic discovery.
+The concrete first read replaces the broad scalar preview and root index when it
+fits; unknown schemas or a tight reference budget keep generic discovery. Warm
+deltas keep their existing reader, and disabled native delivery is unchanged.
+This is a starting selection, not all required sources: read applicable criteria,
+evidence and the complete operation/settlement contract before depending on them.
+The original SHA-bound full recovery remains available; a selected page's EOF
+does not prove complete source delivery, model retention or fresh authority.
+
+中文：已启用原生传输的完整引用可给出 `first_read_command`，合并当前准入、停止条件、
+任务和完整 Goal/Todo 正文，以及来源状态、版本与读取入口；历史和可选格式说明仍在
+同一捕获中按需展开。它是起始选读，不代表已读全部必要来源；依赖具体验收、证据或
+执行/结算契约前仍须完整读取。未知 schema、过小引用预算和 warm delta 保留既有路线，
+关闭原生传输的输出不变；完整恢复和原 SHA 校验均保留。只读的 `--initial-read` 不与
+显式选读或索引混用；续页保留短选项和固定的选读摘要，profile 改变则拒绝混读。
+首读也给出现有验收材料地址和当前结算义务。仅明确 `required=false` 的附件延后完整
+说明与模板，使用前须读原附件；未知计划保留全文。首读分页不重复正文中的指针，
+选读摘要仍阻止将它记作完整输入。
+
 Checkpoint Host preflight uses the hidden `--defer-context-presentation` option
 with an explicitly enabled native JSON `should-run` capture. It collects the
 same complete Goal source for admitted work-context reads and writes the ordinary
@@ -463,6 +495,20 @@ ceiling); if metadata cannot fit, recovery retains the current capture. Reader
 pages remain independently bounded. A complete raw tool log is not proof that
 the Host retained the same bytes in model history.
 
+After the shared TypeScript codec accepts a delta, the native output adapter
+compares its final reference plus a complete explicit-file read against the
+same current full capture. The comparison includes compact JSON framing,
+UTF-8 escaping, first-page guidance, continuation commands and the active page
+budgets, while respecting the reader's existing whole-capture size limit.
+A tie, a cheaper full delivery or an unreadable delta under that budget
+uses the existing full capture when it is readable. Only the chosen view is
+registered; a full fallback keeps the same target and recovery digest and
+starts with zero delta ancestry. No additional projection or admission is run.
+This is a serialized-output-byte rule for one complete delivery, not a
+requirement to read everything or a prediction of token billing. Selective
+reads, baseline discovery, later recovery and model-retained history remain
+separate costs and decisions.
+
 File references carry the original path, digest and budgeted reader command;
 the outer view supplies navigation. The first bounded full-file page supplies
 the complete paging and truncation-recovery instructions, including when read
@@ -760,6 +806,15 @@ SSH Goal 使用 `--runtime-profile codex_app_ssh_goal` 生成 context-config 和
 `--list` 或 `--select <pointer>`，差分投递时也直接读取当前完整捕获。
 元数据仍放不下时保留当前捕获恢复入口。读取页另受输出预算约束。
 原始工具日志完整，不证明宿主保留给模型的字节也完整。
+
+共享 TypeScript codec 接受差分后，原生输出适配层比较两种交付的最终引用与一次
+显式按文件通读的总字节数：候选差分，以及同一当前完整捕获。比较包含紧凑 JSON
+封装、UTF-8 转义、首屏读取说明、续读命令及当前分页预算，并遵守 reader 既有的
+完整捕获大小上限。全量更小、两者相等，
+或差分在该预算下无法读取而全量可读时，复用已有完整捕获。只登记最终选中的视图；
+全量回退保留相同 target 和恢复摘要，并将差分 ancestry 归零，不增加投影或准入。
+这条规则只比较一次完整交付的序列化输出字节，不要求通读，也不预测计费 token。
+选读、基线发现、后续恢复及模型历史保留仍是独立的成本与决策。
 
 文件引用保留原始路径、摘要和遵循预算的读取命令；外层视图提供导航。首个有界全文
 分页返回完整的分页与截断恢复说明，直接在新 shell 中按 capture/hash 读取也一样。

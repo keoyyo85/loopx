@@ -93,6 +93,14 @@ and an independent validator:
 4. `loopx turn run-once --execute` performs writeback and quota spend only when
    the typed result and independent validation both pass.
 
+Default `turn plan` output is an inspection projection. It retains the decision,
+selected work, boundaries and writeback routes without printing a second
+complete source beside the envelope. Its `boundary.inspection_only=true` prevents
+turning that readback into a source-less host request. Existing structured
+consumers use `--include-transaction-detail`, which retains the complete source
+and session/transaction input. `turn run-once` retains and validates the original
+complete contract before dispatch; default inspect output does not replace it.
+
 The adapter and validator executable names below are placeholders supplied by
 the integration. They are separate programs because the executor must not
 validate its own completion claim.

@@ -1807,6 +1807,55 @@ def test_turn_cli_consumes_live_state_without_writes(
     assert before == after
 
 
+@pytest.mark.parametrize("provider", ["file", "sqlite"])
+@pytest.mark.parametrize("transaction_detail", [False, True])
+def test_turn_cli_inspection_does_not_become_source_less_execution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, provider: str,
+    transaction_detail: bool,
+) -> None:
+    from loopx.cli_commands import turn
+
+    _, runtime, registry = _write_live_fixture(tmp_path, provider=provider)
+    original_plans: list[dict[str, Any]] = []
+    real_plan = turn.build_loopx_turn_plan
+
+    def retain_executor_plan(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        planned = real_plan(*args, **kwargs)
+        # Preserve the actual executor input independently of CLI formatting.
+        original_plans.append(json.loads(json.dumps(planned)))
+        return planned
+
+    monkeypatch.setattr(turn, "build_loopx_turn_plan", retain_executor_plan)
+    output = io.StringIO()
+    args = ["--registry", str(registry), "--runtime-root", str(runtime),
+            "--format", "json", "turn", "plan", "--goal-id", "loopx-turn-fixture",
+            "--agent-id", "codex-fixture"]
+    if transaction_detail:
+        args.append("--include-transaction-detail")
+    with contextlib.redirect_stdout(output):
+        code = cli_main(args)
+    inspection = json.loads(output.getvalue())
+    assert code == 0, inspection
+    assert inspection["route"] == original_plans[0]["route"]
+    assert inspection["turn_envelope"] == original_plans[0]["turn_envelope"]
+    if transaction_detail:
+        # Existing explicit structured consumers retain the full source; this
+        # cold route cannot be replaced with an envelope-only admission either.
+        detailed = build_loopx_turn_host_request(inspection)
+        assert detailed["work_contract"] == original_plans[0]["work_contract"]
+    else:
+        assert "work_contract" not in inspection
+        # Even restoring valid transaction detail cannot promote an inspection
+        # projection to legacy source-less execution.
+        inspection["transaction"] = original_plans[0]["transaction"]
+        inspection["session"] = original_plans[0]["session"]
+        with pytest.raises(ValueError, match="CLI inspection"):
+            build_loopx_turn_host_request(inspection)
+    request = build_loopx_turn_host_request(original_plans[0])
+    assert request["work_contract"]["schema_version"] == "loopx_turn_envelope_v1"
+    assert request["work_contract"] == original_plans[0]["work_contract"]
+
+
 def test_turn_cli_resolves_its_decision_through_the_shared_owner(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

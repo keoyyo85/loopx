@@ -328,6 +328,14 @@ def handle_turn_command(
                 capability_action["command"] = shlex.join(capability_action["command_argv"])
         if args.turn_command == "plan":
             if not args.include_transaction_detail:
+                # Default inspection does not print the executor's complete
+                # source again beside its envelope. Mark this projection so
+                # it cannot be recycled as a legacy source-less host request.
+                # Explicit transaction detail retains the complete input for
+                # existing structured consumers, as actual execution does.
+                payload = dict(payload)
+                payload.pop("work_contract", None)
+                payload["boundary"] = {**payload.get("boundary", {}), "inspection_only": True}
                 payload.pop("session", None)
                 payload.pop("transaction", None)
                 boundary = payload.get("boundary")

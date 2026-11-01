@@ -921,6 +921,7 @@ class ChatRequestHandler(
             }
         )
 
+    @effect_runtime_request_scope()
     def _session_snapshot(self, session_id: str) -> None:
         try:
             query = parse_qs(urlparse(self.path).query, keep_blank_values=True)
@@ -1860,7 +1861,7 @@ def serve_chat(
     lark_cli_bin: str | None = None,
     startup_timeout_sec: float | None = None,
     idle_timeout_sec: float = 180.0,
-    hard_timeout_sec: float = 900.0,
+    hard_timeout_sec: float | None = None,
     assets_dir: Path | None = None,
     open_browser: bool = False,
     verbose: bool = False,
