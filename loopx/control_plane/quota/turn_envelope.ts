@@ -1,5 +1,5 @@
 import {capturedContextSelection} from "./context_selection.ts";
-import {progressiveContextPlan} from "./progressive_context.ts";
+import {prepareProgressiveContextDelivery} from "./progressive_context.ts";
 import type { LoopXTurnRouteValue } from "../turn_driver/turn_contract_generated.ts";
 import { EFFECTIVE_ACTIONS, EffectiveAction, type QuotaEffectiveActionValue } from "./effective_action.generated.ts";
 import { AGENT_SCOPE_FRONTIER_ACTIONS } from "../agents/agent_scope_frontier.generated.ts";
@@ -1940,7 +1940,6 @@ export function evaluateTurnEnvelope(value: unknown): JsonObject {
       contextSourceIdentity(source, request.source_number_tokens)));
   }
   if (operation === "replan_view") return replanView(request);
-  if (operation === "progressive_context_plan") return progressiveContextPlan(request);
   if (operation === "context_select") return capturedContextSelection(request);
   if (operation === "replan_cli_view") {
     const payload = requireJsonObject(request.payload, "replan CLI payload");
@@ -2075,7 +2074,9 @@ export function evaluateTurnEnvelope(value: unknown): JsonObject {
     const envelope = buildTurnEnvelope(request);
     return {envelope, route: turnEnvelopeRoute(envelope)};
   }
-  if (operation === "context_delivery") return prepareContextDelivery(request, LEGACY_QUOTA_CONTEXT_FIELDS);
+  if (operation === "context_delivery") return request.native_projection === undefined
+    ? prepareContextDelivery(request, LEGACY_QUOTA_CONTEXT_FIELDS)
+    : prepareProgressiveContextDelivery(request, LEGACY_QUOTA_CONTEXT_FIELDS);
   if (operation === "native_context_lifecycle") return updateNativeContextLifecycle(request);
   if (operation === "context_recovery") return restoreContextDelivery(request, LEGACY_QUOTA_CONTEXT_FIELDS);
   if (operation === "bind_capture") return bindTurnDecisionCapture(request);

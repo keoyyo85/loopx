@@ -1,6 +1,7 @@
+import {DocumentAttachment, isTextDocument} from "./document-attachment";
 import {useEffect, useRef, useState} from "react";
 import {ChevronRight, CircleAlert, ListChecks, RefreshCw, X} from "lucide-react";
-import {fetchChatSession, fetchChatSessions, requestJson, type ChatImageAttachment, type ChatVisibleMessage, type ChatReplyContext} from "../../data/chat";
+import {fetchChatSessionHistory, fetchChatSessions, requestJson, type ChatImageAttachment, type ChatVisibleMessage, type ChatReplyContext} from "../../data/chat";
 import {z} from "zod";
 import {fetchConversationRequests, type ConversationRequest, type ConversationRequestInventory} from "../../data/conversation-requests";
 import {ContextHelp} from "./context-help";
@@ -132,6 +133,7 @@ function requestStage(row: ConversationRequest, zh: boolean) {
 
 function OriginalImage({attachment, zh}: {attachment: ChatImageAttachment; zh: boolean}) {
   const [failed, setFailed] = useState(false);
+  if (isTextDocument(attachment.mime_type)) return <DocumentAttachment dataUrl={attachment.data_url} name={attachment.name} size={attachment.size} zh={zh}/>;
   return failed ? <p role="status">{zh ? "图片无法显示：" : "Image unavailable: "}{attachment.name}</p>
     : <img src={attachment.data_url} alt={attachment.name} onError={() => setFailed(true)}/>;
 }
@@ -170,9 +172,8 @@ function OriginalRequest({row, zh, revision, active}: {row: ConversationRequest;
     setError(false);
     if (!open || !active) {setMessages(null); return;}
     const abort = new AbortController();
-    void fetchChatSession(row.source_session_id, abort.signal).then(value => {
+    void fetchChatSessionHistory(row.source_session_id, abort.signal).then(value => {
       if (abort.signal.aborted) return;
-      if (value.session.session_id !== row.source_session_id) throw new Error("Original conversation scope changed.");
       const source = value.messages.filter(message => message.turn_id === row.source_turn_id);
       if (!source.length) throw new Error("Original turn unavailable.");
       setMessages(source);

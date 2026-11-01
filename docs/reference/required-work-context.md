@@ -39,6 +39,11 @@ references follow their complete inline owner when that projection relocates it,
 including an owner visited later. Different revisions, types, failures and
 sources stay distinct. This adds no source read or authority, admission or
 settlement change; saved captures retain their original contents.
+Vision-audit and replan-authoring mirrors reuse that local serialization
+identity. Boolean/number values, integer/integral-float representations and
+signed zero remain distinct when their original JSON encodings differ. Key
+order alone does not prevent sharing. This adds no model read or runtime round
+trip; distinct source facts retain their complete instructions.
 Registered Goal state uses the existing writer's strict generated-region
 ownership. When every recognized Todo region is explicitly marked, the source
 adapter delivers **all other text verbatim** in `work_context.sources`: Goal
@@ -603,6 +608,9 @@ all-Goal adoption, actual solver costs or outcome benefit.
 普通 CLI 在同一响应内共享完全相同的验收副本。已有引用跟随本次投影迁移的完整
 内联 owner，包括后访问的 owner；不同修订、类型、失败和来源分别保留。不增加来源
 读取，不改变权限、准入或结算；已存 capture 保留原始内容。
+Vision audit 和 replan authoring 副本复用该本地序列化身份。原始 JSON 编码不同的
+布尔／数值、整数／整值浮点表示及带符号零分别保留；仅键顺序不同仍可共享。不增加
+模型补读或 runtime 往返；不同来源事实保留完整指引。
 Goal Markdown 复用原 writer 对生成区域的严格归属规则：所有已识别 Todo 区域均有
 显式标记时，`work_context.sources` 原样携带区域外的全部文字，保留目标、frontmatter、
 任意章节、注释、历史和末尾停止条件。`excluded_todo_regions` 保留每段的角色、行区间
@@ -865,6 +873,27 @@ known pointer does not require another index round trip. Batch within the combin
 output budget, avoid overlapping parent/child selections, and inspect a missing
 pointer's parent before retrying the rejected batch. These are caller guidelines;
 selection validation, required reads and authority checks remain unchanged.
+When it fits the existing native-reference output ceiling, `field_index` supplies
+the complete top-level index of the current recovery capture. Its pointers,
+types, byte sizes and member counts match `context-read --list`; it contains no
+field bodies and never proves they were read. Select those pointers through
+`recovery.command`; a delta's `command` still addresses its patch. Oversized
+indexes are omitted whole, leaving `index_command` and full recovery available.
+Selection errors identify the original `--select` argument and, for a failed
+lookup, its token position (both 1-based). Sorting and duplicate elimination do
+not renumber arguments. Inspect the resolved prefix before that token in the
+same capture; malformed pointers need syntax repair first. Diagnostics never
+echo the pointer or task values, and no part of a rejected batch is delivered.
+
+Reader failures preserve the runtime's `error_kind` and `diagnostic_code` so
+programs need not parse `reason`. Selector rejections use `request_rejected`
+with `context_selection_invalid_pointer`, `context_selection_invalid_index`
+or `context_selection_missing_pointer`. Repair the pointer syntax or inspect
+the known parent in the same capture, then retry the corrected batch. Other
+runtime failures retain their own classification; startup failures retain
+their diagnostic code. These failures do not require restoring a healthy
+capture. Missing or damaged capture files still fail closed through the
+original file/digest checks. Reading again never reruns admission.
 
 The `context_capture_index_v1` view shares the digest-bound pagination contract.
 An expanded index includes its `list_depth`; `next_command` preserves the depth,
@@ -900,10 +929,25 @@ pointer 从原始摘要绑定的 capture 批量读取详情。提供已有 `--ca
 发现多层字段。深度默认为 1，可选 1–8；需要更深时选择新的父节点继续。这只限制
 单次遍历深度，不限制 capture 容量或可读正文。优先展开相关子树，省略路径才从根开始。
 生成的读取指引会提示上述选择，不把查目录变成前置步骤，也不改变工作前的必读要求。
+在原生引用的现有输出上限允许时，`field_index` 直接提供当前 recovery capture 的完整
+顶层目录，其 pointer、类型、字节数和成员数与 `context-read --list` 一致。目录不含
+正文，也不证明已阅读；通过 `recovery.command` 选读这些路径，delta 的 `command`
+仍指向补丁。过大目录整体省略，保留 `index_command` 与完整恢复路径。
 普通 capture 回复、原生持久配置与压缩后恢复携带同一份选择指引。恢复命令直接指向
 `--select`，已知路径无须多查一轮目录。按合计输出预算分批，避免同时选择父节点和
 子节点；路径缺失时先查其父节点，再重试被拒绝的批次。这些是调用建议，不改变
 选择校验、必读要求或权限检查。
+选择错误会标明原始 `--select` 参数序号；查找失败时还会标明 token 序号，均从 1
+开始。排序和去重不改变参数编号。在同一 capture 中检查失败 token 前已解析的
+路径前缀；语法错误需先修正 pointer。错误信息不回显路径或任务正文，被拒绝的
+批次不会返回部分内容。
+
+读取失败保留 runtime 的 `error_kind` 与 `diagnostic_code`，程序无需解析 `reason`。
+选择错误使用 `request_rejected`，原因码分别为 `context_selection_invalid_pointer`、
+`context_selection_invalid_index` 或 `context_selection_missing_pointer`。
+修正路径语法或在同一 capture 中检查已知父节点，再重试修正后的批次。其他 runtime
+故障保留自身分类；启动故障保留原诊断码。这些故障不要求恢复健康的 capture。
+文件缺失或损坏仍由原文件/摘要检查拒绝，重新读取不会重新准入。
 
 `context_capture_index_v1` 沿用双摘要分页；展开的目录包含 `list_depth`，
 `next_command` 保留深度、路径和两个摘要。更改深度会拒绝旧视图的续读，目录 cursor

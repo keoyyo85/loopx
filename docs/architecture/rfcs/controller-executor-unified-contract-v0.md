@@ -130,6 +130,15 @@ the existing context-delivery owner. C1 must converge the remaining composition
 and consumer assumptions, rather than introduce another capture service or
 rewrite already shared delta/native-resume logic.
 
+Optional host polling is part of that original observation. The source-fidelity
+slice records `--record-host-poll` once before capture and reuses its receipt in
+ordinary CLI, envelope and native-context delivery. Recovery reads do not poll
+again. A later capture/handoff failure retains the already-recorded observation
+in its error response; it does not imply missing admission or authorize replay.
+Default-off behavior and unreadable receipt diagnostics remain unchanged. This
+repairs capture completeness, not the unified writer/consumer cutover or a
+long-horizon cost-benefit result.
+
 A separate native-presentation slice reuses the committed full recovery as its
 reader target, avoiding an unused second wire publication. Delta and unwrapped
 inputs retain their own immutable files and the same reader/lifecycle owners.
@@ -929,6 +938,15 @@ from local sharing to one call. These are projection-parameter measurements,
 not framed traffic, latency, model billing or the integrated C1 comparison.
 Retain this negative result rather than declaring a net efficiency win.
 
+The compatibility owner also uses one local JSON serialization identity for
+acceptance, Vision-audit and replan-authoring sharing. Python's ordinary value
+equality must not turn distinct booleans/numbers, integer/float representations
+or signed zero into an alias to another observation. Exact copies still share
+one in-response owner, including after key reordering; different facts remain
+complete. This repairs source fidelity without another projection RPC. It does
+not qualify the unified writer, final consumers or original-quota outcome/cost
+benefit.
+
 Repair relocated acceptance aliases at the current compatibility owner without
 that extra transport. Existing aliases must follow only inline owners actually
 moved by the projection, including aliases visited before their owner. Preserve
@@ -1037,6 +1055,16 @@ Required facts still precede dependent decisions; admission and settlement are
 unchanged. This does not qualify C1's unified producer/consumer cutover or the
 matched effectiveness/full-cost result in §9. Rollback uses the existing
 context-delivery off path; staged material composition remains separately owned.
+
+Native delivery now composes the existing progressive plan and full/delta codec
+in one TypeScript invocation. The intermediate Python plan application and its
+dispatch are retired. Python retains the session lock, Host observations and
+private immutable-file publication: it saves the current complete recovery
+before the optional transaction, then publishes any required view before
+returning its encoded delivery. Original numeric spellings and source-reference
+identity use the existing projection-edit transport. This changes neither
+required-read obligations nor admission, settlement or the off path; it does
+not close C1/C2 adoption or establish model-outcome/full-cost benefit.
 
 C1's inventory is part of its usable replacement, not a standalone architecture
 framework. C3/C4/C5 can proceed independently once C1's contract is stable;

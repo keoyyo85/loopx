@@ -176,9 +176,9 @@ def test_native_projection_reuses_planner_and_returns_exact_file_manifest(tmp_pa
 
     monkeypatch.setattr(turn_envelope, "_turn_envelope_result", counted)
     payload, wire = project(tmp_path)
-    # Use main's material planner and codec; the discarded scope wrapper no
-    # longer fuses them. Keep their actual transport cost visible.
-    assert calls == ["progressive_context_plan", "context_delivery"]
+    # Main's typed transaction owns material planning and encoding together.
+    # Complete inputs use that same call without reviving a separate planner RPC.
+    assert calls == ["context_delivery"]
     assert wire["mode"] == "full" and wire["context"] == payload
     recovery = wire["recovery"]
     original = Path(recovery["path"]).read_bytes()
@@ -208,7 +208,7 @@ def test_material_projection_interruption_keeps_current_original_recovery(tmp_pa
         pass
 
     def interrupt(name, **request):
-        if name == "progressive_context_plan":
+        if name == "context_delivery":
             observed.append(context._state(tmp_path))
             raise PlannerInterrupted()
         return operation(name, **request)
@@ -387,6 +387,8 @@ def test_native_reference_exposes_file_continuity_and_preserves_full_recovery(tm
     assert view["continuity_basis"] == "captured_file"
     assert view["baseline_reference"]["path"] == first["recovery"]["path"]
     assert view["recovery"]["path"] == second["recovery"]["path"]
+    assert [field["pointer"] for field in view["field_index"]] == list("/" + key for key in payload)
+    assert "/changes" not in [field["pointer"] for field in view["field_index"]], "index addresses current recovery, never the delta wire"
     for instruction in (view["instruction"], second["recovery"]["instruction"]):
         assert "Native input observation independently verifies" not in instruction
     deliver(tmp_path, event, capture_pages(view["path"], view["sha256"]))

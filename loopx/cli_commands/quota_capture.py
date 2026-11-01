@@ -95,6 +95,24 @@ def _capture_page(path: Path, raw: bytes, digest: str, *, offset: int, size: int
     return best
 
 
+def _context_index_fields(payload: dict[str, Any], children: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Serialize metadata for TS-verified addresses, preserving Python JSON values."""
+    fields = []
+    for child in children:
+        value: Any = payload
+        for key in child["path"]:
+            value = value[key]
+        field = {"pointer": child["pointer"], "type":
+            "object" if isinstance(value, dict) else "array" if isinstance(value, list)
+            else "null" if value is None else "boolean" if isinstance(value, bool)
+            else "string" if isinstance(value, str) else "number",
+            "bytes": len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))}
+        if isinstance(value, (dict, list)):
+            field["count"] = len(value)
+        fields.append(field)
+    return fields
+
+
 def read_context_capture(args: argparse.Namespace, *, presentation: dict[str, Any] | None = None,
                          next_page_bytes: int | None = None,
                          next_page_output_bytes: int | None = None) -> dict[str, Any]:
@@ -167,20 +185,7 @@ def read_context_capture(args: argparse.Namespace, *, presentation: dict[str, An
                 for key in item["path"]:
                     selected = selected[key]
                 if list_fields:
-                    fields = []
-                    for child in item["children"]:
-                        value = payload
-                        for key in child["path"]:
-                            value = value[key]
-                        field = {"pointer": child["pointer"], "type":
-                            "object" if isinstance(value, dict) else "array" if isinstance(value, list)
-                            else "null" if value is None else "boolean" if isinstance(value, bool)
-                            else "string" if isinstance(value, str) else "number",
-                            "bytes": len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))}
-                        if isinstance(value, (dict, list)):
-                            field["count"] = len(value)
-                        fields.append(field)
-                    views.append({"pointer": item["pointer"], "fields": fields})
+                    views.append({"pointer": item["pointer"], "fields": _context_index_fields(payload, item["children"])})
                 else:
                     views.append({"pointer": item["pointer"], "value": selected})
             view_options = {"list_depth": list_depth} if list_depth is not None and list_depth != 1 else {}
@@ -201,10 +206,32 @@ def read_context_capture(args: argparse.Namespace, *, presentation: dict[str, An
     except (OSError, ValueError, RecursionError, EffectRuntimeRemoteError, EffectRuntimeStartupError) as exc:
         # Recovery is presentation-only: keep failures separate from quota's
         # collection error path and retain the existing receipt/capture.
-        return {"ok": False, "schema_version": "context_capture_page_v1",
+        result = {"ok": False, "schema_version": "context_capture_page_v1",
             "reason": str(exc) if isinstance(exc, (ValueError, EffectRuntimeRemoteError, EffectRuntimeStartupError))
                 else "original capture could not be read",
             "recovery": "Restore the original digest-bound capture; no guard, admission or spend was performed."}
+        if isinstance(exc, (EffectRuntimeRemoteError, EffectRuntimeStartupError)):
+            result["diagnostic_code"] = exc.diagnostic_code
+            result["recovery"] = ("Resolve the reported runtime failure, then retry reading the same digest-bound capture; "
+                "no guard, admission or spend was performed.")
+        if isinstance(exc, EffectRuntimeRemoteError):
+            result["error_kind"] = exc.error_kind
+            if exc.error_kind == "request_rejected":
+                result["recovery"] = ("Correct the rejected read request; for unknown fields use --list on a known parent. "
+                    "Keep the original capture and digest; no guard, admission or spend was performed.")
+        return result
+
+
+def _capture_read_reference(value: dict[str, Any], *, page_bytes: int,
+                            output_bytes: int) -> dict[str, str]:
+    """Keep file identity and the budgeted reader at the transport boundary.
+
+    Navigation lives on the outer view; complete paging obligations accompany
+    the actual reader response. Neither belongs in every nested file reference.
+    """
+    return {"path": value["path"], "sha256": value["sha256"],
+        "command": context_capture_read_command(Path(value["path"]), value["sha256"],
+            page_bytes=page_bytes, max_page_output_bytes=output_bytes)}
 
 
 def _capture_read_reference(value: dict[str, Any], *, page_bytes: int,
@@ -285,6 +312,24 @@ def native_context_capture_view(projected: dict[str, Any], directory: Path, *,
     # The reference must fit even under an explicit small caller ceiling.
     def fits():
         return len(json.dumps(result, ensure_ascii=False, separators=(",", ":")).encode()) + 1 <= min(output_bytes, 7900)
+    # The same complete top-level index as `context-read --list`, bound to
+    # recovery (current facts), not a delta's patch keys. This saves an index
+    # tool roundtrip when it fits; it neither supplies source contents nor
+    # acknowledges their delivery. Deeper navigation keeps its existing route.
+    from ..control_plane.quota.turn_envelope import _turn_envelope_result
+
+    # Depth-one addressing needs keys only, not another transport of every
+    # source body. Metadata bytes/types are read from the original JSON below.
+    try:
+        plan = _turn_envelope_result("context_select", context=dict.fromkeys(current_document), select=[""], list_fields=True)
+    except (EffectRuntimeRemoteError, EffectRuntimeStartupError):
+        # An optional index cannot turn a valid immutable file reference into
+        # a failed delivery. Ordinary full recovery remains a file-only read.
+        pass
+    else:
+        result["field_index"] = _context_index_fields(current_document, plan["selections"][0]["children"])
+        if not fits():
+            result.pop("field_index")  # Optional metadata must never displace recovery or instructions.
     if not fits():
         result.pop("overview")
     if not fits():
@@ -401,13 +446,24 @@ def project_saved_context_capture(args: argparse.Namespace) -> dict[str, Any]:
                     "Current context recovery could not be prepared. Read the saved "
                     "original decision and receipt; do not rerun admission."
                 )
+            page_bytes, output_bytes = native_context_page_budget()
+            output_limit = getattr(args, "max_page_output_bytes", None)
+            if isinstance(output_limit, int) and output_limit > 0:
+                output_bytes = min(output_bytes, output_limit)
+                page_bytes = min(page_bytes, output_bytes)
+            recovery_index = {**full_reference, "command": context_capture_read_command(
+                Path(full_reference["path"]), full_reference["sha256"],
+                page_bytes=page_bytes, max_page_output_bytes=output_bytes, list_fields=True)}
             return {"ok": False, "error_code": exc.error_code,
                 "reason": " ".join(str(exc).split())[:500],
                 "heartbeat_receipt": receipt, "capture_sha256": args.capture_sha256,
-                "recovery": full_reference,
-                "instruction": "Context presentation was not published. Read recovery.command for the "
-                    "original captured decision and preserve its Turn receipt; do not rerun admission. "
-                    "Authority and freshness are unchanged. " + CONTEXT_CAPTURE_READ_GUIDANCE}
+                "recovery": recovery_index,
+                "instruction": "Context presentation was not published. Discover current fields with "
+                    "recovery.command, then select only the facts the current decision needs from the original "
+                    "capture; do not drain unrelated optional material or rerun admission. Preserve its Turn "
+                    "receipt. If a selected value spans pages, follow next_command only for that selection and "
+                    "verify contiguous offsets, total_bytes and sha256. Authority and freshness are unchanged. "
+                    + CONTEXT_CAPTURE_NAVIGATION_GUIDANCE}
         # Off is inert; after native preparation an optional wire write can fall
         # back to the committed required view without leaving an older selector live.
     result: dict[str, Any] = {"ok": True, "mode": mode, **reference, **({"target": target} if target else {}),

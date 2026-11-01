@@ -219,17 +219,12 @@ def bind_turn_decision_capture(
     )
 
 
-def plan_progressive_context(payload: Mapping[str, Any], *, surface: str) -> dict[str, Any]:
-    """Typed presentation edits; the source JSON and all work authority stay intact."""
-    return _turn_envelope_result("progressive_context_plan", payload=dict(payload), surface=surface)
-
-
 def prepare_context_delivery(
     context: Mapping[str, Any], *, scope: Mapping[str, str], capture_id: str,
     baseline: Mapping[str, Any] | None = None,
     retained: Mapping[str, Any] | None = None,
     continuity: Mapping[str, Any] | None = None,
-    surface: str = "work_context",
+    surface: str = "work_context", native_projection: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Prepare under the Host's explicit continuity basis, not a model assertion.
 
@@ -244,6 +239,8 @@ def prepare_context_delivery(
         baseline=dict(baseline) if baseline is not None else None,
         retained=dict(retained) if retained is not None else None,
         continuity=dict(continuity) if continuity is not None else None)
+    if native_projection is not None:
+        source["native_projection"] = dict(native_projection)
     result = _turn_envelope_result("context_delivery", **source, source_edits=True)
     return _apply_context_projection_changes(source, result)
 

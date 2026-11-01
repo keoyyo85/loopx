@@ -206,9 +206,13 @@ The EdgeBench adapter carries this outcome through artifact collection into
 `runtime_status` and `native_goal_outcome`. Failed, cancelled, usage-limited and
 unknown native outcomes do not publish `final_result.json`: existing SForge
 consumers use that file as a completion marker without interpreting the outcome
-labels. Handled terminal stops retain the existing final-result behavior;
-neither artifact grants result qualification. Ordinary non-native profile
-handling is unchanged. Adopt this behavior only for newly pinned attempts;
+labels. A handled terminal stop completes execution; explicit native grading
+must also be `complete` to publish a final result. Pending or unknown grading
+retains its scores and reason in a partial result, including for ordinary
+non-native profiles. Sources that omit `grading_status` retain the legacy
+publication behavior. Neither artifact grants result qualification; see the
+[EdgeBench result publication rules](../edgebench/README.md) for export behavior.
+Adopt this behavior only for newly pinned attempts;
 frozen histories retain their original receipts and require explicit post-run
 classification. Roll back by pinning the previous source for another new attempt,
 not by renaming artifacts in a frozen run.
@@ -415,6 +419,34 @@ Backend-specific networking stays in the benchmark's native launcher.
 
 ## Results, timeout and recovery
 
+### Live session observation
+
+Frequent capacity and liveness polls may use
+`benchmark.runtime.session_observation.observe_codex_session_tail`. It reads at
+most the final 16 MiB of a live rollout by default, keeps only complete JSONL
+records, and returns content-free event counts, the latest cumulative token
+snapshot, timestamps, and framing diagnostics. Structured terminal provider
+failures reuse the same record framing through `provider_failure.py`; free-text
+errors are not classified as rate limits. The observation does not return prompts,
+assistant messages, tool output, error text, session ids, model ids, or local
+paths.
+
+An external controller can call the same path without importing benchmark code:
+
+```sh
+python -m benchmark.runtime.session_observation /explicit/session/rollout.jsonl
+```
+
+The rollout path is selected by the isolated runner/controller and is never
+echoed into the observation. The module is not loaded or invoked by ordinary
+workers unless a controller explicitly runs this command.
+
+This bounded tail is an operational signal, not an accounting or integrity
+source. Exact usage booking continues to stream the complete explicitly bound
+rollout through `read_codex_session_usage`; trajectory conversion and benchmark
+integrity continue to use their existing complete artifacts. A missing usage
+event in the bounded tail remains unknown rather than becoming zero.
+
 Private per-wake receipts distinguish process success, Turn settlement and
 native benchmark results. Sessions are collected once per native filename;
 resume updates that copy instead of counting the old prefix in every wake.
@@ -431,6 +463,38 @@ Pending controlled Turns retain their identity across worker restarts. Core
 `--resume-turn-key --retry-failed-turn` decides recovery eligibility and retry limits. The runner
 does not delete homes or session bindings, edit registries directly, or
 monkeypatch CLI internals.
+
+### Native Goal process observations
+
+New `native-goal` and `loopx-goal` worker executions also write
+`native-process.json` in the wake directory and include the same observation in
+`receipt.json.native_process`. No additional setting is required. The existing
+worker owns launch and cleanup; the benchmark capability observes its shared
+stdio transport without restarting the process or replaying requests.
+
+The snapshot retains PID, observation time and Linux process-start ticks when
+available; the first transport API failure (operation, exception type and message
+digest); process return code/signal before cleanup; requested cleanup signals;
+and the status observed after cleanup. Startup and failure observations are
+written immediately, with atomic owner-only snapshot replacement. Earlier
+edges stay in the snapshot. Task text, messages, command arguments, environment
+and stderr are not copied into it. A write failure is disclosed separately and
+does not replace the original runtime exception or prevent process cleanup.
+
+| Observation | Supported interpretation |
+| --- | --- |
+| Exit code or signal observed before cleanup | The child was already terminal; the code does not by itself establish root cause. |
+| Stream failure while return code is null | The exchange failed while child termination was unobserved; EOF alone is not proof of process death. |
+| Signal observed only after cleanup started | Cleanup may have contributed. Do not count this signal alone as a native crash. |
+| Exit code 0 with an unfinished transaction | Process exit is not proof of Goal completion. Preserve the protocol failure. |
+| Missing start ticks or missing final observation | Identity/terminal evidence remains incomplete; do not infer the missing fact from timestamps. |
+
+These records do not assert OOM, scorer validity, score countability or fault
+ownership. An abrupt worker kill may leave only the last successfully written
+snapshot. Final error accounting still needs the native transaction and run
+evidence. Historical attempts remain frozen and gain no retrospective proof;
+new experiment adoption requires the reviewed runner/source profile. Other
+worker modes retain their existing receipts and process behavior.
 
 ## Migration and qualification
 
