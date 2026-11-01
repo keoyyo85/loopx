@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import re
 import shlex
+import sys
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -53,6 +55,17 @@ GOAL_ID = "settlement-goal"
 AGENT_ID = "codex-settlement"
 TODO_ID = "todo_settlement"
 TURN_ID = "turn-settlement-1"
+
+WINDOWS_HOST = sys.platform == "win32"
+# An unsettled Turn reference is rendered in the syntax of the shell that has to
+# expand it, so the POSIX spelling is only the expected form on a POSIX host.
+POSIX_TURN_REFERENCE = "${LOOPX_TURN:?}"
+WINDOWS_TURN_REFERENCE = "$LOOPX_TURN"
+UNSETTLED_TURN_REFERENCE = WINDOWS_TURN_REFERENCE if WINDOWS_HOST else POSIX_TURN_REFERENCE
+UNSETTLED_TURN_ARGUMENT = (
+    f"--turn-instance-id {UNSETTLED_TURN_REFERENCE}" if WINDOWS_HOST
+    else f'--turn-instance-id "{UNSETTLED_TURN_REFERENCE}"'
+)
 
 
 def test_writeback_guidance_uses_current_cli_scale_vocabulary():
@@ -713,7 +726,7 @@ def test_codex_app_plan_projects_one_identity_across_settlement_steps() -> None:
     ).as_dict()
 
     assert plan["identity"]["todo_id"] == TODO_ID
-    assert plan["identity"]["turn_instance_id"] == "${LOOPX_TURN:?}"
+    assert plan["identity"]["turn_instance_id"] == UNSETTLED_TURN_REFERENCE
     assert [step["kind"] for step in plan["ordered_steps"]] == [
         "validation",
         "durable_writeback",
@@ -728,8 +741,76 @@ def test_codex_app_plan_projects_one_identity_across_settlement_steps() -> None:
         command = settlement_step_command(plan, kind)
         assert command is not None
         assert f"--todo-id {TODO_ID}" in command
-        assert '--turn-instance-id "${LOOPX_TURN:?}"' in command
+        assert UNSETTLED_TURN_ARGUMENT in command
     assert plan["host_handoff"]["inside_agent_settlement"] is False
+
+
+@pytest.mark.parametrize(
+    ("windows_host", "turn_reference", "turn_argument"),
+    [
+        (False, POSIX_TURN_REFERENCE, f'--turn-instance-id "{POSIX_TURN_REFERENCE}"'),
+        (True, WINDOWS_TURN_REFERENCE, f"--turn-instance-id {WINDOWS_TURN_REFERENCE}"),
+    ],
+)
+def test_codex_app_plan_turn_reference_is_runnable_on_the_host_shell(
+    monkeypatch: pytest.MonkeyPatch,
+    windows_host: bool,
+    turn_reference: str,
+    turn_argument: str,
+) -> None:
+    monkeypatch.setattr(quota_effect_program, "_is_windows_host", lambda: windows_host)
+    plan = build_codex_app_settlement_plan(
+        goal_id=GOAL_ID,
+        agent_id=AGENT_ID,
+        todo_id=TODO_ID,
+        scoped_cli_args=f" --agent-id {AGENT_ID}",
+        lifecycle_actor_args=f" --agent-id {AGENT_ID}",
+    ).as_dict()
+    foreign_reference = POSIX_TURN_REFERENCE if windows_host else WINDOWS_TURN_REFERENCE
+
+    assert plan["identity"]["turn_instance_id"] == turn_reference
+    assert turn_argument in quota_effect_program.settlement_binding_args(plan)
+    for kind in (
+        SettlementStepKind.DURABLE_WRITEBACK,
+        SettlementStepKind.QUOTA_SPEND,
+        SettlementStepKind.TERMINAL_CLOSEOUT,
+    ):
+        command = settlement_step_command(plan, kind)
+        assert command is not None
+        assert turn_argument in command
+        assert foreign_reference not in command
+
+
+def test_posix_turn_reference_from_another_host_renders_for_this_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(quota_effect_program, "_is_windows_host", lambda: True)
+
+    assert quota_effect_program._quoted_turn_ref(POSIX_TURN_REFERENCE) == WINDOWS_TURN_REFERENCE
+
+
+@pytest.mark.parametrize("windows_host", (False, True))
+def test_concrete_turn_reference_needs_no_shell_quoting_on_any_host(
+    monkeypatch: pytest.MonkeyPatch,
+    windows_host: bool,
+) -> None:
+    monkeypatch.setattr(quota_effect_program, "_is_windows_host", lambda: windows_host)
+
+    assert quota_effect_program._quoted_turn_ref(TURN_ID) == TURN_ID
+
+
+def test_unsettled_turn_reference_has_one_host_owner_in_the_quota_package() -> None:
+    owner = Path(quota_effect_program.__file__).name
+    holders = sorted(
+        str(path)
+        for path in Path(quota_effect_program.__file__).parent.rglob("*")
+        if path.is_file()
+        and path.suffix in (".py", ".ts")
+        and path.name != owner
+        and re.search(r"LOOPX_TURN|os\.name", path.read_text(encoding="utf-8"))
+    )
+
+    assert holders == []
 
 
 def test_cli_validation_projects_ordinary_completion_not_terminal_intent() -> None:
@@ -831,7 +912,7 @@ def test_standard_app_actions_use_typed_settlement_before_turn_driver(
     assert actions[1].startswith("loopx --format json quota spend-slot")
     for command in actions:
         assert f"--todo-id {todo_id}" in command
-        assert '--turn-instance-id "${LOOPX_TURN:?}"' in command
+        assert UNSETTLED_TURN_ARGUMENT in command
 
 
 def test_codex_app_actions_preserve_a_concrete_admitted_turn_identity() -> None:
@@ -854,7 +935,8 @@ def test_codex_app_actions_preserve_a_concrete_admitted_turn_identity() -> None:
     assert len(actions) == 2
     for command in actions:
         assert f"--turn-instance-id {turn_instance_id}" in command
-        assert "${LOOPX_TURN:?}" not in command
+        assert POSIX_TURN_REFERENCE not in command
+        assert WINDOWS_TURN_REFERENCE not in command
 
 
 @pytest.mark.parametrize(
@@ -1050,10 +1132,10 @@ def test_codex_app_external_observation_settles_only_substantive_writeback() -> 
     assert actions[1].startswith("on a substantive transition or blocker only:")
     assert "--delivery-outcome <outcome>" in actions[1]
     assert f"--todo-id {todo_id}" in actions[1]
-    assert '--turn-instance-id "${LOOPX_TURN:?}"' in actions[1]
+    assert UNSETTLED_TURN_ARGUMENT in actions[1]
     assert actions[2].startswith("after that accountable writeback receipt only:")
     assert f"--todo-id {todo_id}" in actions[2]
-    assert '--turn-instance-id "${LOOPX_TURN:?}"' in actions[2]
+    assert UNSETTLED_TURN_ARGUMENT in actions[2]
     assert "otherwise do not spend for unchanged observation" in actions[2]
 
 
@@ -1104,7 +1186,8 @@ def test_turn_scoped_generic_cli_contract_uses_exact_settlement_identity(
         if command:
             assert binding in command
             assert f"--turn-instance-id {TURN_ID}" in command
-            assert "${LOOPX_TURN:?}" not in command
+            assert POSIX_TURN_REFERENCE not in command
+            assert WINDOWS_TURN_REFERENCE not in command
 
 
 def test_todo_bound_replan_projects_one_settlement_binding_and_full_chain() -> None:

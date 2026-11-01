@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shlex
 from collections.abc import Mapping
 from typing import Any
@@ -56,10 +57,28 @@ __all__ = [
 ]
 
 
+def _is_windows_host() -> bool:
+    return os.name == "nt"
+
+
+# A settlement plan is rendered before the host shell expands the Turn
+# reference, so the placeholder has to be spelled in that shell's syntax.
+_POSIX_TURN_REFERENCE = "${LOOPX_TURN:?}"
+_WINDOWS_TURN_REFERENCE = "$LOOPX_TURN"
+
+
+def _unsettled_turn_reference() -> str:
+    return _WINDOWS_TURN_REFERENCE if _is_windows_host() else _POSIX_TURN_REFERENCE
+
+
 def _quoted_turn_ref(turn_instance_id_ref: str) -> str:
-    if turn_instance_id_ref == "${LOOPX_TURN:?}":
-        return '"${LOOPX_TURN:?}"'
-    return shlex.quote(turn_instance_id_ref)
+    # PowerShell has no POSIX `${name:?}` expansion: it forwards an empty
+    # argument, so the Windows plan must carry the bare variable instead.
+    if turn_instance_id_ref not in (_POSIX_TURN_REFERENCE, _WINDOWS_TURN_REFERENCE):
+        return shlex.quote(turn_instance_id_ref)
+    if _is_windows_host():
+        return _WINDOWS_TURN_REFERENCE
+    return f'"{_POSIX_TURN_REFERENCE}"'
 
 
 def _settlement_actor_args(arguments: str, agent_id: str) -> str:
@@ -120,7 +139,7 @@ def build_codex_app_settlement_plan(
         replan_obligation_id=replan_obligation_id,
         scoped_cli_args=scoped_cli_args,
         lifecycle_actor_args=lifecycle_actor_args,
-        turn_instance_id=turn_instance_id_ref or "${LOOPX_TURN:?}",
+        turn_instance_id=turn_instance_id_ref or _unsettled_turn_reference(),
         writeback_path_args=writeback_path_args,
         delivery_boundary=delivery_boundary,
         quota_spend_source=quota_spend_source,
